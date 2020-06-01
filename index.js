@@ -27,23 +27,32 @@ export class Machine {
     }
 
     if (typeof transition === 'string') {
+      state.changed = true
       state.value = transition
     } else if (Array.isArray(transition)) {
       for (var i = 0, len = transition.length; i < len; i++) {
         var v = transition[i]
-        if (!v.cond) {
+        if (typeof v === 'string') {
+          state.changed = true
+          state.value = v
+        } else if (v.cond && guards[v.cond](ctx, evt)) {
+          state.changed = true
           state.value = v.target
           break
-        } else if (guards[v.cond](ctx, evt)) {
+        } else if (v.target && !v.cond) {
+          state.changed = true
           state.value = v.target
           break
         }
       }
+    } else {
+      // undefined  type
+      return state
     }
 
-    const newNode = states[state.value]
-    state.changed = state.value !== current || !!newNode.entry
     if (!state.changed) return state
+
+    const newNode = states[state.value]
 
     const { exit } = node
     if (typeof exit === 'string') {
@@ -83,14 +92,15 @@ class Service {
   }
 }
 
-export const interpret = m => new Service(m)
+export const interpret = (m) => new Service(m)
 
-export const assign = fns => {
-  const keys = Object.keys(fns)
-  return ctx => {
+export const assign = (obj) => {
+  const keys = Object.keys(obj)
+  return (ctx) => {
     for (var i = 0, len = keys.length; i < len; i++) {
       var key = keys[i]
-      ctx[key] = fns[key](ctx)
+      const val = obj[key]
+      ctx[key] = typeof val === 'function' ? val(ctx) : val
     }
   }
 }
